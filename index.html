@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.15.2/ace.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .menu-button { transition: all 0.2s ease-in-out; }
@@ -51,6 +52,7 @@
         .chat-bubble { padding: 0.75rem 1rem; border-radius: 0.75rem; max-width: 80%; }
         .chat-bubble-user { background-color: #dbeafe; color: #1e3a8a; align-self: flex-end; }
         .chat-bubble-ai { background-color: #e5e7eb; color: #1f2937; align-self: flex-start; }
+        #ace-editor { width: 100%; height: 300px; border-radius: 0.5rem; border: 1px solid #d1d5db; }
     </style>
 </head>
 <body class="text-gray-800">
@@ -72,7 +74,7 @@
 
             <footer id="action-footer" class="mt-8 pt-6 border-t border-gray-200 hidden">
                  <div class="flex items-center justify-end space-x-4">
-                    <button id="copy-button" class="flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    <button id="copy-button" class="flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500" style="display: none;">
                         <div id="copy-icon" class="w-5 h-5 mr-2"></div>
                         Copy Output
                     </button>
@@ -84,15 +86,12 @@
             </footer>
         </main>
 
-        <aside class="w-full md:w-72 bg-[#f8fafc] p-6 border-l border-gray-200">
+        <aside class="w-full md:w-72 bg-[#f8fafc] p-6 border-l border-gray-200 overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-bold">Work Items</h2>
             </div>
             <nav id="menu-container" class="space-y-2">
-                 <button data-template="SAFe Feature" class="menu-button w-full text-left px-4 py-3 rounded-lg font-medium text-gray-700 flex items-center">
-                    <i data-lucide="gem" class="w-5 h-5 mr-3"></i>
-                    <span>SAFe Feature</span>
-                </button>
+                 <!-- Menu buttons will be dynamically inserted here -->
             </nav>
         </aside>
     </div>
@@ -115,6 +114,119 @@
             let generatedFeatureData = null;
             let conversationHistory = [];
             let refinedFeatureIdea = "";
+            let aceEditor = null;
+
+            const templates = {
+                'SAFe Feature': {
+                    title: 'SAFe Feature',
+                    description: 'Define a feature using a guided, conversational process to ensure all SAFe requirements are met.',
+                    icon: 'gem'
+                },
+                'User Story': {
+                    title: 'User Story',
+                    description: 'Describe what a user wants to do, and the AI will generate a formal User Story and Acceptance Criteria.',
+                    icon: 'user-check',
+                    fields: [
+                        { id: 'initialStoryDetails', label: 'What does the user want to do?', type: 'textarea', placeholder: 'e.g., A site administrator needs to be able to remove inappropriate comments from blog posts to maintain community standards.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'userStory', label: 'User Story Description', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'acceptanceCriteria', label: 'Acceptance Criteria', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 5 },
+                    ]
+                },
+                'BDD': {
+                    title: 'BDD',
+                    description: 'Describe a feature\'s behavior in plain language, and the AI will generate the Gherkin syntax for you.',
+                    icon: 'file-text',
+                    fields: [
+                        { id: 'scenarioDetails', label: 'Scenario Details', type: 'textarea', placeholder: 'Describe the user interaction and expected outcome. For example: "A user goes to the login page, enters their correct username and password, clicks the login button, and should then be taken to their personal dashboard page."' },
+                        { id: 'gherkin', label: 'Generated Gherkin Scenario', type: 'ace', placeholder: 'Generated Gherkin code will appear here...' }
+                    ]
+                },
+                'Risk': {
+                    title: 'Risk',
+                    description: 'Describe a potential risk, and the AI will generate a structured analysis and mitigation plan.',
+                    icon: 'alert-triangle',
+                    fields: [
+                        { id: 'initialRiskDetails', label: 'Provide a brief overview of the risk', type: 'textarea', placeholder: 'e.g., Our third-party payment processing API has been experiencing intermittent downtime, which could affect customer checkouts.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'riskDescription', label: 'Risk Description', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'impact', label: 'Impact', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'mitigationResponsePlan', label: 'Mitigation Response Plan', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 4 },
+                    ]
+                },
+                'Impediment': {
+                    title: 'Impediment',
+                    description: 'Describe a blocker, and the AI will generate a structured impediment report.',
+                    icon: 'shield-alert',
+                     fields: [
+                        { id: 'initialImpedimentDetails', label: 'Provide a brief overview of the impediment', type: 'textarea', placeholder: 'e.g., The staging environment server is down, which is blocking all QA testing for the current sprint.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'impact', label: 'Impact', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'desiredOutcome', label: 'Desired Outcome', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 2 },
+                    ]
+                },
+                'Spike': {
+                    title: 'Spike',
+                    description: 'Describe a research task, and the AI will generate a structured spike plan.',
+                    icon: 'flask-conical',
+                    fields: [
+                        { id: 'initialSpikeDetails', label: 'Provide a brief overview of the research needed', type: 'textarea', placeholder: 'e.g., We need to investigate and compare two different charting libraries (D3.js vs. Chart.js) for our new analytics dashboard.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'scenario', label: 'Scenario', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'purpose', label: 'Purpose', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 2 },
+                        { id: 'tasks', label: 'Tasks', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 4 },
+                    ]
+                },
+                 'Decision': {
+                    title: 'Decision',
+                    description: 'Describe a problem or context, and the AI will generate a structured decision log entry.',
+                    icon: 'gavel',
+                    fields: [
+                        { id: 'initialDecisionDetails', label: 'Provide a brief overview of the decision to be made', type: 'textarea', placeholder: 'e.g., We need to decide whether to build a new internal admin tool from scratch or purchase a third-party solution.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'contextProblem', label: 'Context/Problem', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'currentState', label: 'Current State', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 2 },
+                        { id: 'proposedState', label: 'Proposed State', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'possibleBenefits', label: 'Possible Benefits', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'possibleRisks', label: 'Possible Risks', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                    ]
+                },
+                'Team PI Objective': {
+                    title: 'Team PI Objective',
+                    description: 'Describe a team\'s PI objective, and the AI will format it correctly.',
+                    icon: 'flag',
+                    fields: [
+                        { id: 'initialTeamPIObjectiveDetails', label: 'Provide a brief overview of the Team PI Objective', type: 'textarea', placeholder: 'e.g., The payments team will upgrade the payment gateway to support international currencies by the end of the PI to enable global sales expansion.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: '[Team Name] will [action verb] [what / summary of features].' },
+                        { id: 'description', label: 'Description', type: 'textarea', placeholder: '[Team Name] will [action verb] [what / summary of features] by [deadline] so that [who / customer / business] will [action verb] [value purpose].', rows: 4 },
+                    ]
+                },
+                'Team Iteration Goal': {
+                    title: 'Team Iteration Goal',
+                    description: 'Describe a team\'s goal for the iteration, and the AI will structure it.',
+                    icon: 'repeat',
+                    fields: [
+                        { id: 'initialTeamIterationGoalDetails', label: 'Provide a brief overview of the iteration goal', type: 'textarea', placeholder: 'e.g., Complete the user profile page, including the ability to upload a profile picture and update contact information.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'goal', label: 'Goal', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 2 },
+                        { id: 'outcome', label: 'Outcome', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'valueAdded', label: 'Value Added', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 2 },
+                    ]
+                },
+                'Program PI Objective': {
+                    title: 'Program PI Objective',
+                    description: 'Describe a high-level Program Increment objective, and the AI will generate a structured plan.',
+                    icon: 'network',
+                    fields: [
+                        { id: 'initialProgramPIObjectiveDetails', label: 'Provide a brief overview of the Program PI Objective', type: 'textarea', placeholder: 'e.g., Launch the new mobile application for iOS and Android to capture a new market segment and increase user engagement.' },
+                        { id: 'title', label: 'Title', type: 'text', placeholder: 'Generated title will appear here...' },
+                        { id: 'description', label: 'Description', type: 'textarea', placeholder: 'Generated content will appear here...', rows: 3 },
+                        { id: 'businessValue', label: 'Business Value (1-10)', type: 'number', placeholder: 'Enter a value from 1 to 10' },
+                        { id: 'associatedFeatures', label: 'Associated Features', type: 'textarea', placeholder: 'List the Feature IDs or titles related to this objective.', rows: 4 },
+                    ]
+                }
+            };
+
 
             function renderStaticIcons() {
                 document.getElementById('welcome-icon').innerHTML = `<i data-lucide="layout-template" class="w-full h-full"></i>`;
@@ -124,50 +236,129 @@
 
             function initApp() {
                 renderStaticIcons();
-                lucide.createIcons();
                 renderMenu();
+                lucide.createIcons();
             }
             
             function renderMenu() {
-                document.querySelectorAll('.menu-button').forEach(button => {
+                menuContainer.innerHTML = '';
+                Object.keys(templates).forEach(key => {
+                    const template = templates[key];
+                    const button = document.createElement('button');
+                    button.className = 'menu-button w-full text-left px-4 py-3 rounded-lg font-medium text-gray-700 flex items-center';
+                    button.dataset.template = key;
+                    button.innerHTML = `<i data-lucide="${template.icon}" class="w-5 h-5 mr-3"></i><span>${template.title}</span>`;
                     button.addEventListener('click', () => {
-                        currentActiveTemplate = button.dataset.template;
-                        renderTemplate(currentActiveTemplate);
+                        currentActiveTemplate = key;
+                        renderTemplate(key);
                         document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
                         button.classList.add('active');
                     });
+                    menuContainer.appendChild(button);
                 });
+                lucide.createIcons();
             }
 
             function renderTemplate(key) {
                 generatedFeatureData = null;
                 conversationHistory = [];
                 refinedFeatureIdea = "";
-                actionFooter.classList.add('hidden');
-                copyButton.style.display = 'none';
+                actionFooter.classList.remove('hidden');
+                copyButton.style.display = 'flex';
+
+                if (aceEditor) {
+                    aceEditor.destroy();
+                    aceEditor = null;
+                }
 
                 if (key === 'SAFe Feature') {
                     startFeatureDefinitionFlow();
                 } else {
-                    templateContainer.innerHTML = 'Template not implemented.';
+                    renderGenericTemplate(key);
                 }
             }
             
             function startFeatureDefinitionFlow() {
+                copyButton.style.display = 'none';
                 templateContainer.innerHTML = `
                     <div class="fade-in">
                         <h2 class="text-2xl font-bold text-gray-900">New SAFe Feature - Step 1: The Idea</h2>
                         <p class="text-gray-600 mt-1 mb-6">Let's start by defining the feature. Describe your initial idea, the problem it solves, and the expected outcome. The AI will ask clarifying questions if needed.</p>
-                        <div id="conversation-container" class="space-y-4"></div>
+                        <div id="conversation-container" class="space-y-4 h-64 overflow-y-auto p-2 border rounded-md flex items-center justify-center">
+                             <div id="conversation-placeholder" class="text-center text-gray-400">
+                                <i data-lucide="lightbulb" class="mx-auto h-16 w-16"></i>
+                                <p class="mt-2 text-sm">Your conversation with the AI will appear here.</p>
+                            </div>
+                        </div>
                         <div id="input-container" class="mt-4"></div>
                     </div>
                 `;
+                lucide.createIcons();
                 renderUserInput(
                     "What is your feature idea/problem statement?",
                     "Describe the business or technical problem, the desired outcome, primary users, and the value this feature will bring...",
                     "Start Refinement",
                     processInitialIdea
                 );
+            }
+
+            function renderGenericTemplate(key) {
+                const template = templates[key];
+                const initialField = template.fields[0];
+                const generatedFields = template.fields.slice(1);
+                
+                let generatedFieldsHTML = '';
+                generatedFields.forEach(field => {
+                    if (field.type === 'ace') {
+                        generatedFieldsHTML += `<div><label for="${field.id}" class="block text-sm font-medium text-gray-700 mb-1">${field.label}</label><div id="${field.id}" style="width: 100%; height: 300px; border-radius: 0.5rem; border: 1px solid #d1d5db;"></div></div>`;
+                    } else {
+                        const Tag = field.type === 'textarea' ? 'textarea' : 'input';
+                        generatedFieldsHTML += `
+                            <div>
+                                <label for="${field.id}" class="block text-sm font-medium text-gray-700 mb-1">${field.label}</label>
+                                <${Tag} id="${field.id}" type="${field.type}" ${field.rows ? `rows="${field.rows}"` : ''} placeholder="${field.placeholder}" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></${Tag}>
+                            </div>`;
+                    }
+                });
+
+                const buttonText = key === 'BDD' ? 'Generate Gherkin' : 'Generate Details';
+
+                const formHTML = `
+                    <div class="space-y-6">
+                        <div>
+                            <label for="${initialField.id}" class="block text-sm font-medium text-gray-700 mb-1">${initialField.label}</label>
+                            <textarea id="${initialField.id}" rows="4" placeholder="${initialField.placeholder}" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                            <div class="mt-4 text-right">
+                                <button id="generic-generate-button" class="ai-generator-button">
+                                    <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i>
+                                    <span>${buttonText}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="generated-fields-container" class="space-y-6 pt-6 border-t border-dashed" style="display:none;">
+                            ${generatedFieldsHTML}
+                        </div>
+                    </div>
+                `;
+                
+                templateContainer.innerHTML = `
+                    <div class="fade-in">
+                        <h2 class="text-2xl font-bold text-gray-900">${template.title}</h2>
+                        <p class="text-gray-600 mt-1 mb-6">${template.description}</p>
+                        ${formHTML}
+                    </div>`;
+
+                lucide.createIcons();
+                
+                const aceField = template.fields.find(f => f.type === 'ace');
+                if (aceField) {
+                    aceEditor = ace.edit(aceField.id);
+                    aceEditor.setTheme("ace/theme/chrome");
+                    aceEditor.session.setMode("ace/mode/gherkin");
+                    aceEditor.setOptions({ fontSize: "14px", showPrintMargin: false });
+                }
+
+                document.getElementById('generic-generate-button').addEventListener('click', () => handleGenericAiGeneration(key));
             }
 
             function renderUserInput(label, placeholder, buttonText, callback) {
@@ -195,6 +386,13 @@
             
             function updateConversationDisplay(role, text) {
                 const conversationContainer = document.getElementById('conversation-container');
+                const placeholder = document.getElementById('conversation-placeholder');
+
+                if (placeholder) {
+                    placeholder.remove();
+                    conversationContainer.classList.remove('flex', 'items-center', 'justify-center');
+                }
+
                 const bubble = document.createElement('div');
                 bubble.classList.add('chat-bubble', role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai');
                 bubble.textContent = text;
@@ -298,12 +496,101 @@
                     renderTemplate(currentActiveTemplate); // Go back to start on error
                 }
             }
+
+            async function handleGenericAiGeneration(key) {
+                const template = templates[key];
+                const button = document.getElementById('generic-generate-button');
+                const initialField = document.getElementById(template.fields[0].id);
+                const userInput = initialField.value.trim();
+
+                if (!userInput) {
+                    showToast('Please provide an initial overview first.', 'error');
+                    return;
+                }
+
+                button.disabled = true;
+                button.innerHTML = `<span class="loader mr-2"></span><span>Generating...</span>`;
+
+                let prompt, schema, fieldMapping = {};
+                template.fields.slice(1).forEach(f => fieldMapping[f.id] = f.id);
+
+                switch (key) {
+                    case 'User Story':
+                        prompt = `Based on the following user story idea, generate a structured User Story work item. 1. Create a 'title'. 2. Write the 'userStory' description strictly following the format 'As a [user role], I want [activity], so that [business value].' 3. Write a list of 'acceptanceCriteria' as a multi-line string. User Story Idea: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, userStory: { type: "STRING" }, acceptanceCriteria: { type: "STRING" } }, required: ["title", "userStory", "acceptanceCriteria"] };
+                        break;
+                    case 'BDD':
+                        prompt = `Based on the following scenario details, generate a complete Gherkin script. The output must be only the Gherkin code. Infer a suitable title for the "Feature:" and "Scenario:" lines. Scenario Details: "${userInput}"`;
+                        break;
+                    case 'Risk':
+                        prompt = `Based on the following risk overview, elaborate and generate the content for a structured risk analysis. Risk Overview: "${userInput}".`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, riskDescription: { type: "STRING" }, impact: { type: "STRING" }, mitigationResponsePlan: { type: "STRING" } }, required: ["title", "riskDescription", "impact", "mitigationResponsePlan"] };
+                        break;
+                    case 'Impediment':
+                        prompt = `Based on the following impediment overview, generate a structured impediment report. Create a concise title that summarizes the issue. Impediment Overview: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, impact: { type: "STRING" }, desiredOutcome: { type: "STRING" } }, required: ["title", "impact", "desiredOutcome"] };
+                        break;
+                    case 'Spike':
+                        prompt = `Based on the following research overview, generate a structured Spike plan. Create a concise title. Research Overview: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, scenario: { type: "STRING" }, purpose: { type: "STRING" }, tasks: { type: "STRING" } }, required: ["title", "scenario", "purpose", "tasks"] };
+                        break;
+                    case 'Decision':
+                        prompt = `Based on the following decision overview, generate a structured decision log. Create a concise title. Decision Overview: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, contextProblem: { type: "STRING" }, currentState: { type: "STRING" }, proposedState: { type: "STRING" }, possibleBenefits: { type: "STRING" }, possibleRisks: { type: "STRING" } }, required: ["title", "contextProblem", "currentState", "proposedState", "possibleBenefits", "possibleRisks"] };
+                        break;
+                    case 'Team PI Objective':
+                        prompt = `Based on the following overview, generate a structured Team PI Objective. The title must follow the format '[Team Name] will [action verb] [what / summary of features]'. The description must follow the format '[Team Name] will [action verb] [what / summary of features] by [deadline] so that [who / customer / business] will [action verb] [value purpose].' Overview: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, description: { type: "STRING" } }, required: ["title", "description"] };
+                        break;
+                    case 'Team Iteration Goal':
+                        prompt = `Based on the following overview, generate a structured Team Iteration Goal. Create a concise title that summarizes the goal. Overview: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, goal: { type: "STRING" }, outcome: { type: "STRING" }, valueAdded: { type: "STRING" } }, required: ["title", "goal", "outcome", "valueAdded"] };
+                        break;
+                    case 'Program PI Objective':
+                        prompt = `Based on the following overview, generate a structured Program PI Objective. Create a concise title. Describe the business value as a number from 1 to 10. List associated features. Overview: "${userInput}"`;
+                        schema = { type: "OBJECT", properties: { title: { type: "STRING" }, description: { type: "STRING" }, businessValue: { type: "NUMBER" }, associatedFeatures: { type: "STRING" } }, required: ["title", "description", "businessValue", "associatedFeatures"] };
+                        break;
+                }
+
+                try {
+                    let generatedContent;
+                    if (key === 'BDD') {
+                        const resultText = await callGemini(prompt); 
+                        generatedContent = { gherkin: resultText };
+                    } else {
+                        generatedContent = await callGemini(prompt, schema);
+                    }
+
+                    document.getElementById('generated-fields-container').style.display = 'block';
+
+                    for (const [genKey, elementId] of Object.entries(fieldMapping)) {
+                        const element = document.getElementById(elementId);
+                        if (element) {
+                             if (elementId === 'gherkin' && aceEditor) {
+                                aceEditor.setValue(generatedContent[genKey] || '', -1);
+                            } else {
+                                element.value = generatedContent[genKey] || '';
+                            }
+                        }
+                    }
+                    showToast('Details generated successfully!', 'success');
+                } catch (error) {
+                    console.error(`${key} Generation Error:`, error);
+                    showToast(`Failed to generate details. Please try again.`, 'error');
+                } finally {
+                    button.disabled = false;
+                    const buttonText = key === 'BDD' ? 'Generate Gherkin' : 'Generate Details';
+                    button.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4 mr-2"></i><span>${buttonText}</span>`;
+                    lucide.createIcons();
+                }
+            }
             
-            async function callGemini(prompt, schema) {
-                const payload = {
-                    contents: [{ role: "user", parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", responseSchema: schema }
-                };
+            async function callGemini(prompt, schema = null) {
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                if (schema) {
+                    payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
+                }
+                
                 const apiKey = "AIzaSyC-ZcBjJWD1Vw7PDS6T8QzQGp2RJlmL2aM";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
                 
@@ -319,7 +606,8 @@
                 }
                 const result = await response.json();
                 if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
-                    return JSON.parse(result.candidates[0].content.parts[0].text);
+                    const text = result.candidates[0].content.parts[0].text;
+                    return schema ? JSON.parse(text) : text;
                 } else {
                     throw new Error("No content generated by the API.");
                 }
@@ -374,24 +662,42 @@
             }
 
             function generateOutputText() {
-                if (!generatedFeatureData) return 'No feature has been generated yet.';
-                const data = generatedFeatureData;
-                const velocityText = document.querySelector('.generated-field-content p strong')?.parentElement?.textContent;
-                const velocity = velocityText ? parseInt(velocityText.split(': ')[1]) : 20;
-                const { ranges, assignedSize } = calculateSizing(velocity, data.storyPoints);
-                
-                let sizingText = `SIZING & ESTIMATION\nTeam Velocity: ${velocity}\nAI-Estimated Story Points: ${data.storyPoints}\nAssigned Size: ${assignedSize}\n\n`;
-                sizingText += 'T-Shirt Size | Story Point Range\n---------------------------------\n';
-                Object.keys(ranges).forEach(key => { sizingText += `${key.padEnd(12)} | ${ranges[key].label}\n`; });
+                if (currentActiveTemplate === 'SAFe Feature') {
+                    if (!generatedFeatureData) return 'No feature has been generated yet.';
+                    const data = generatedFeatureData;
+                    const velocityText = document.querySelector('.generated-field-content p strong')?.parentElement?.textContent;
+                    const velocity = velocityText ? parseInt(velocityText.split(': ')[1]) : 20;
+                    const { ranges, assignedSize } = calculateSizing(velocity, data.storyPoints);
+                    
+                    let sizingText = `SIZING & ESTIMATION\nTeam Velocity: ${velocity}\nAI-Estimated Story Points: ${data.storyPoints}\nAssigned Size: ${assignedSize}\n\n`;
+                    sizingText += 'T-Shirt Size | Story Point Range\n---------------------------------\n';
+                    Object.keys(ranges).forEach(key => { sizingText += `${key.padEnd(12)} | ${ranges[key].label}\n`; });
 
-                const sections = Object.entries(data).map(([key, value]) => {
-                    if (key === 'storyPoints') return null;
-                    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                    return { label, content: value };
-                }).filter(Boolean);
-                sections.push({ label: 'Sizing & Estimation', content: sizingText });
+                    const sections = Object.entries(data).map(([key, value]) => {
+                        if (key === 'storyPoints') return null;
+                        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                        return { label, content: value };
+                    }).filter(Boolean);
+                    sections.push({ label: 'Sizing & Estimation', content: sizingText });
 
-                return sections.map(sec => `** ${sec.label.toUpperCase()} **\n${sec.content}\n\n`).join('');
+                    return sections.map(sec => `** ${sec.label.toUpperCase()} **\n${sec.content}\n\n`).join('');
+                } else {
+                    // Handle generic templates
+                    const template = templates[currentActiveTemplate];
+                    if (!template) return '';
+                    let output = `WORK ITEM: ${template.title.toUpperCase()}\n========================================\n\n`;
+                    template.fields.slice(1).forEach(field => {
+                        let value;
+                        if (field.type === 'ace' && aceEditor) {
+                            value = aceEditor.getValue();
+                        } else {
+                            const input = document.getElementById(field.id);
+                            if (input) value = input.value;
+                        }
+                        output += `** ${field.label} **\n${value || '(Not provided)'}\n\n`;
+                    });
+                    return output;
+                }
             }
 
             function showToast(message, type = 'success') {
