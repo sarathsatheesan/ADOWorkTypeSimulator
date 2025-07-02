@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADO Work Item Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .menu-button { transition: all 0.2s ease-in-out; }
+        .menu-button.active { background-color: #2563eb; color: white; }
+        .menu-button:not(.active):hover { background-color: #e2e8f0; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .toast { visibility: hidden; opacity: 0; transition: opacity 0.5s, visibility 0.5s, transform 0.5s; transform: translateY(20px); }
+        .toast.show { visibility: visible; opacity: 1; transform: translateY(0); }
+        .ai-generator-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            background-color: #4f46e5;
+            color: white;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: background-color 0.2s;
+        }
+        .ai-generator-button:hover { background-color: #4338ca; }
+        .ai-generator-button:disabled { background-color: #a5b4fc; cursor: not-allowed; }
+        .loader {
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #fff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .generated-field-container { margin-bottom: 1.5rem; }
+        .generated-field-label { display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem; }
+        .generated-field-content { white-space: pre-wrap; background-color: #f9fafb; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; line-height: 1.5; color: #1f2937; }
+        .sizing-table { width: 100%; margin-top: 0.5rem; border-collapse: collapse; }
+        .sizing-table th, .sizing-table td { border: 1px solid #d1d5db; padding: 0.75rem; text-align: left; font-size: 0.875rem; }
+        .sizing-table th { background-color: #f3f4f6; font-weight: 600; }
+        .sizing-table td.highlight { background-color: #dbeafe; font-weight: 700; }
+        .chat-bubble { padding: 0.75rem 1rem; border-radius: 0.75rem; max-width: 80%; }
+        .chat-bubble-user { background-color: #dbeafe; color: #1e3a8a; align-self: flex-end; }
+        .chat-bubble-ai { background-color: #e5e7eb; color: #1f2937; align-self: flex-start; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="app-container" class="flex flex-col md:flex-row h-screen">
+        <main class="flex-1 p-6 md:p-8 lg:p-10 bg-white overflow-y-auto">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">ADO Work Item Simulator</h1>
+                <p class="text-gray-600 mt-2">A smart front-end for Azure DevOps. Select a work item to generate a standardized template, including a specialized generator for SAFe Features.</p>
+            </header>
+            
+            <div id="template-container" class="fade-in">
+                 <div class="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                    <div id="welcome-icon" class="mx-auto h-12 w-12 text-gray-400"></div>
+                    <h3 class="mt-2 text-lg font-medium text-gray-900">Welcome to the Simulator</h3>
+                    <p class="mt-1 text-sm text-gray-500">Select a template from the right to begin.</p>
+                </div>
+            </div>
+
+            <footer id="action-footer" class="mt-8 pt-6 border-t border-gray-200 hidden">
+                 <div class="flex items-center justify-end space-x-4">
+                    <button id="copy-button" class="flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <div id="copy-icon" class="w-5 h-5 mr-2"></div>
+                        Copy Output
+                    </button>
+                    <button id="reset-button" class="flex items-center px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
+                        <div id="reset-icon" class="w-5 h-5 mr-2"></div>
+                        Reset
+                    </button>
+                 </div>
+            </footer>
+        </main>
+
+        <aside class="w-full md:w-72 bg-[#f8fafc] p-6 border-l border-gray-200">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Work Items</h2>
+            </div>
+            <nav id="menu-container" class="space-y-2">
+                 <button data-template="SAFe Feature" class="menu-button w-full text-left px-4 py-3 rounded-lg font-medium text-gray-700 flex items-center">
+                    <i data-lucide="gem" class="w-5 h-5 mr-3"></i>
+                    <span>SAFe Feature</span>
+                </button>
+            </nav>
+        </aside>
+    </div>
+
+    <div id="toast-notification" class="toast fixed bottom-10 right-10 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        <p id="toast-message"></p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const templateContainer = document.getElementById('template-container');
+            const menuContainer = document.getElementById('menu-container');
+            const actionFooter = document.getElementById('action-footer');
+            const copyButton = document.getElementById('copy-button');
+            const resetButton = document.getElementById('reset-button');
+            const toastNotification = document.getElementById('toast-notification');
+            const toastMessage = document.getElementById('toast-message');
+
+            let currentActiveTemplate = null;
+            let generatedFeatureData = null;
+            let conversationHistory = [];
+            let refinedFeatureIdea = "";
+
+            function renderStaticIcons() {
+                document.getElementById('welcome-icon').innerHTML = `<i data-lucide="layout-template" class="w-full h-full"></i>`;
+                document.getElementById('copy-icon').innerHTML = `<i data-lucide="copy" class="w-full h-full"></i>`;
+                document.getElementById('reset-icon').innerHTML = `<i data-lucide="rotate-cw" class="w-full h-full"></i>`;
+            }
+
+            function initApp() {
+                renderStaticIcons();
+                lucide.createIcons();
+                renderMenu();
+            }
+            
+            function renderMenu() {
+                document.querySelectorAll('.menu-button').forEach(button => {
+                    button.addEventListener('click', () => {
+                        currentActiveTemplate = button.dataset.template;
+                        renderTemplate(currentActiveTemplate);
+                        document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                    });
+                });
+            }
+
+            function renderTemplate(key) {
+                generatedFeatureData = null;
+                conversationHistory = [];
+                refinedFeatureIdea = "";
+                actionFooter.classList.add('hidden');
+                copyButton.style.display = 'none';
+
+                if (key === 'SAFe Feature') {
+                    startFeatureDefinitionFlow();
+                } else {
+                    templateContainer.innerHTML = 'Template not implemented.';
+                }
+            }
+            
+            function startFeatureDefinitionFlow() {
+                templateContainer.innerHTML = `
+                    <div class="fade-in">
+                        <h2 class="text-2xl font-bold text-gray-900">New SAFe Feature - Step 1: The Idea</h2>
+                        <p class="text-gray-600 mt-1 mb-6">Let's start by defining the feature. Describe your initial idea, the problem it solves, and the expected outcome. The AI will ask clarifying questions if needed.</p>
+                        <div id="conversation-container" class="space-y-4"></div>
+                        <div id="input-container" class="mt-4"></div>
+                    </div>
+                `;
+                renderUserInput(
+                    "What is your feature idea/problem statement?",
+                    "Describe the business or technical problem, the desired outcome, primary users, and the value this feature will bring...",
+                    "Start Refinement",
+                    processInitialIdea
+                );
+            }
+
+            function renderUserInput(label, placeholder, buttonText, callback) {
+                const inputContainer = document.getElementById('input-container');
+                inputContainer.innerHTML = `
+                    <div>
+                        <label for="user-input" class="block text-sm font-medium text-gray-700">${label}</label>
+                        <textarea id="user-input" rows="5" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="${placeholder}"></textarea>
+                    </div>
+                    <div class="mt-4 text-right">
+                        <button id="submit-input-button" class="ai-generator-button">
+                            ${buttonText}
+                        </button>
+                    </div>
+                `;
+                document.getElementById('submit-input-button').addEventListener('click', () => {
+                    const userInput = document.getElementById('user-input').value;
+                    if (!userInput.trim()) {
+                        showToast('Please provide a response.', 'error');
+                        return;
+                    }
+                    callback(userInput);
+                });
+            }
+            
+            function updateConversationDisplay(role, text) {
+                const conversationContainer = document.getElementById('conversation-container');
+                const bubble = document.createElement('div');
+                bubble.classList.add('chat-bubble', role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai');
+                bubble.textContent = text;
+                conversationContainer.appendChild(bubble);
+                conversationContainer.scrollTop = conversationContainer.scrollHeight;
+            }
+
+            async function processInitialIdea(idea) {
+                conversationHistory.push({ role: 'user', text: idea });
+                updateConversationDisplay('user', idea);
+                await askForClarification();
+            }
+
+            async function processClarificationAnswer(answer) {
+                conversationHistory.push({ role: 'user', text: answer });
+                updateConversationDisplay('user', answer);
+                await askForClarification();
+            }
+
+            async function askForClarification() {
+                const inputContainer = document.getElementById('input-container');
+                inputContainer.innerHTML = `<div class="flex justify-start items-center p-4"><span class="loader mr-4"></span><span>AI is analyzing your input...</span></div>`;
+
+                const clarificationPrompt = `You are an expert SAFe Product Manager. Analyze the following feature description provided by a user. Your goal is to ensure the idea is clear enough for development.
+                    Conversation so far: ${JSON.stringify(conversationHistory)}.
+                    Based on the conversation, determine if the description is vague or incomplete in any of these key areas:
+                    1. The specific business/technical problem.
+                    2. The desired measurable outcome.
+                    3. The primary users or stakeholders.
+                    4. The business value.
+                    Your response MUST be a JSON object.
+                    - If the idea is clear and sufficient, respond with: {"status": "complete", "summary": "<Create a concise, one-paragraph summary of the refined feature idea based on the entire conversation>"}.
+                    - If the idea is unclear, respond with ONE targeted follow-up question to address the most significant gap: {"status": "clarification_needed", "question": "<Your single, targeted follow-up question>"}.
+                    - If the user is struggling after several questions, you can offer a template: {"status": "clarification_needed", "question": "It seems we're having trouble defining the feature. Would you like to try this template? 'As a [role], I want to [do something], so that [benefit or outcome].'"}.
+                `;
+                
+                const schema = { type: "OBJECT", properties: { status: { type: "STRING" }, question: { type: "STRING" }, summary: { type: "STRING" } }, required: ["status"] };
+
+                try {
+                    const result = await callGemini(clarificationPrompt, schema);
+                    
+                    if (result.status === 'complete') {
+                        refinedFeatureIdea = result.summary;
+                        updateConversationDisplay('ai', 'Great, the feature idea is clear. Now, let\'s determine the team velocity.');
+                        renderVelocityInput();
+                    } else { // clarification_needed
+                        conversationHistory.push({ role: 'ai', text: result.question });
+                        updateConversationDisplay('ai', result.question);
+                        renderUserInput(result.question, "Provide more details...", "Submit Answer", processClarificationAnswer);
+                    }
+                } catch (error) {
+                    console.error("Clarification Error:", error);
+                    showToast("Error analyzing the feature idea. Please try again.", "error");
+                    startFeatureDefinitionFlow(); // Reset on error
+                }
+            }
+
+            function renderVelocityInput() {
+                const inputContainer = document.getElementById('input-container');
+                inputContainer.innerHTML = `
+                     <div>
+                        <label for="team-velocity" class="block text-sm font-medium text-gray-700">What is the VELOCITY of the team that will deliver this work? (e.g., 20)</label>
+                        <input type="number" id="team-velocity" value="20" class="mt-1 block w-40 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g., 20">
+                    </div>
+                    <div class="mt-4 text-right">
+                        <button id="generate-feature-button" class="ai-generator-button">
+                            <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i>
+                            <span>Generate Full Feature</span>
+                        </button>
+                    </div>
+                `;
+                lucide.createIcons();
+                document.getElementById('generate-feature-button').addEventListener('click', () => {
+                    const teamVelocity = document.getElementById('team-velocity').value;
+                    if (!teamVelocity || parseInt(teamVelocity) <= 0) {
+                        showToast('Please enter a valid team velocity.', 'error');
+                        return;
+                    }
+                    handleSafeFeatureGeneration(refinedFeatureIdea, parseInt(teamVelocity));
+                });
+            }
+            
+            async function handleSafeFeatureGeneration(featureIdea, teamVelocity) {
+                templateContainer.innerHTML = `<div class="flex justify-center items-center p-8"><span class="loader mr-4"></span><span>Generating the full SAFe Feature... This may take a moment.</span></div>`;
+                actionFooter.classList.add('hidden');
+
+                const generationPrompt = `
+                    As a seasoned Product Manager, generate a comprehensive SAFe Feature based on the refined idea.
+                    Your output must be a JSON object. Also provide a realistic 'storyPoints' estimation.
+                    REFINED FEATURE IDEA: "${featureIdea}"
+                `;
+                const schema = { type: "OBJECT", properties: { featureTitle: { type: "STRING" }, summary: { type: "STRING" }, featureBenefitHypothesis: { type: "STRING" }, businessValueStrategicAlignment: { type: "STRING" }, userImpact: { type: "STRING" }, assumptionsDependencies: { type: "STRING" }, risksMitigations: { type: "STRING" }, nonFunctionalRequirements: { type: "STRING" }, securityPrivacyConsiderations: { type: "STRING" }, sustainabilityMaintenance: { type: "STRING" }, implementationNotes: { type: "STRING" }, validationTestStrategy: { type: "STRING" }, acceptanceCriteria: { type: "STRING" }, readinessChecklist: { type: "STRING" }, storyPoints: { type: "NUMBER" } }, required: ["featureTitle", "summary", "featureBenefitHypothesis", "businessValueStrategicAlignment", "userImpact", "assumptionsDependencies", "risksMitigations", "nonFunctionalRequirements", "securityPrivacyConsiderations", "sustainabilityMaintenance", "implementationNotes", "validationTestStrategy", "acceptanceCriteria", "readinessChecklist", "storyPoints"] };
+
+                try {
+                    generatedFeatureData = await callGemini(generationPrompt, schema);
+                    displayGeneratedFeature(generatedFeatureData, teamVelocity);
+                    showToast('Feature generated successfully!', 'success');
+                } catch (error) {
+                    console.error('SAFe Feature Generation Error:', error);
+                    showToast(`Failed to generate feature. Please try again.`, 'error');
+                    renderTemplate(currentActiveTemplate); // Go back to start on error
+                }
+            }
+            
+            async function callGemini(prompt, schema) {
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+                };
+                const apiKey = "AIzaSyC-ZcBjJWD1Vw7PDS6T8QzQGp2RJlmL2aM;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+                }
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
+                    return JSON.parse(result.candidates[0].content.parts[0].text);
+                } else {
+                    throw new Error("No content generated by the API.");
+                }
+            }
+
+            function displayGeneratedFeature(data, velocity) {
+                const { ranges, assignedSize } = calculateSizing(velocity, data.storyPoints);
+                let sizingTableHTML = `<table class="sizing-table"><thead><tr><th>T-Shirt Size</th><th>Story Point Range</th></tr></thead><tbody>`;
+                Object.keys(ranges).forEach(key => {
+                    sizingTableHTML += `<tr class="${key === assignedSize ? 'highlight' : ''}"><td>${key}</td><td>${ranges[key].label}</td></tr>`;
+                });
+                sizingTableHTML += `</tbody></table>`;
+                if (assignedSize === 'XL') {
+                     sizingTableHTML += `<p class="mt-2 text-sm font-semibold text-red-600">Warning: This feature exceeds the 'L' size threshold. Consider breaking it into smaller, independently valuable features.</p>`;
+                }
+
+                const contentHTML = `
+                    <div class="fade-in">
+                        <h2 class="text-2xl font-bold text-gray-900 break-words">${data.featureTitle || 'Generated SAFe Feature'}</h2>
+                        <p class="text-sm text-gray-500 mb-6">Created by: AI Product Manager | Date: ${new Date().toLocaleDateString()}</p>
+                        <div id="generated-content-container">
+                            ${Object.entries(data).map(([key, value]) => {
+                                if (key === 'featureTitle' || key === 'storyPoints') return '';
+                                const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                                return `<div class="generated-field-container"><label class="generated-field-label">${label}</label><div class="generated-field-content">${value}</div></div>`;
+                            }).join('')}
+                             <div class="generated-field-container"><label class="generated-field-label">Sizing & Estimation</label><div class="generated-field-content"><p class="mb-2"><strong>Team Velocity:</strong> ${velocity}</p><p class="mb-4"><strong>AI-Estimated Story Points:</strong> ${data.storyPoints}</p>${sizingTableHTML}</div></div>
+                        </div>
+                    </div>`;
+                templateContainer.innerHTML = contentHTML;
+                actionFooter.classList.remove('hidden');
+                copyButton.style.display = 'flex';
+            }
+
+            function calculateSizing(velocity, storyPoints) {
+                const V = velocity;
+                const N = 5.5;
+                const round = num => (num <= 10 ? Math.ceil(num / 5) * 5 : Math.ceil(num / 10) * 10);
+                const ranges = {
+                    'XS': { min: 0, max: round(0.5 * V), label: `0 to ${round(0.5 * V)}` },
+                    'S': { min: round(0.5 * V), max: round(1 * V), label: `> ${round(0.5 * V)} to ${round(1 * V)}` },
+                    'M': { min: round(1 * V), max: round(2 * V), label: `> ${round(1 * V)} to ${round(2 * V)}` },
+                    'L': { min: round(2 * V), max: round(N * V), label: `> ${round(2 * V)} to ${round(N * V)}` },
+                    'XL': { min: round(N * V), max: Infinity, label: `> ${round(N * V)}` }
+                };
+                let assignedSize = 'XL';
+                if (storyPoints <= ranges.XS.max) assignedSize = 'XS';
+                else if (storyPoints <= ranges.S.max) assignedSize = 'S';
+                else if (storyPoints <= ranges.M.max) assignedSize = 'M';
+                else if (storyPoints <= ranges.L.max) assignedSize = 'L';
+                return { ranges, assignedSize };
+            }
+
+            function generateOutputText() {
+                if (!generatedFeatureData) return 'No feature has been generated yet.';
+                const data = generatedFeatureData;
+                const velocityText = document.querySelector('.generated-field-content p strong')?.parentElement?.textContent;
+                const velocity = velocityText ? parseInt(velocityText.split(': ')[1]) : 20;
+                const { ranges, assignedSize } = calculateSizing(velocity, data.storyPoints);
+                
+                let sizingText = `SIZING & ESTIMATION\nTeam Velocity: ${velocity}\nAI-Estimated Story Points: ${data.storyPoints}\nAssigned Size: ${assignedSize}\n\n`;
+                sizingText += 'T-Shirt Size | Story Point Range\n---------------------------------\n';
+                Object.keys(ranges).forEach(key => { sizingText += `${key.padEnd(12)} | ${ranges[key].label}\n`; });
+
+                const sections = Object.entries(data).map(([key, value]) => {
+                    if (key === 'storyPoints') return null;
+                    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                    return { label, content: value };
+                }).filter(Boolean);
+                sections.push({ label: 'Sizing & Estimation', content: sizingText });
+
+                return sections.map(sec => `** ${sec.label.toUpperCase()} **\n${sec.content}\n\n`).join('');
+            }
+
+            function showToast(message, type = 'success') {
+                toastMessage.textContent = message;
+                toastNotification.className = 'toast fixed bottom-10 right-10 px-6 py-3 rounded-lg shadow-lg z-50';
+                toastNotification.classList.add(type === 'error' ? 'bg-red-600' : 'bg-gray-900', 'text-white', 'show');
+                setTimeout(() => toastNotification.classList.remove('show'), 3000);
+            }
+
+            copyButton.addEventListener('click', () => {
+                const textToCopy = generateOutputText();
+                navigator.clipboard.writeText(textToCopy).then(() => showToast('Copied to clipboard!')).catch(() => showToast('Failed to copy.', 'error'));
+            });
+
+            resetButton.addEventListener('click', () => {
+                if (currentActiveTemplate) {
+                    renderTemplate(currentActiveTemplate);
+                    showToast('Form has been reset.');
+                }
+            });
+
+            initApp();
+        });
+    </script>
+</body>
+</html>
