@@ -53,6 +53,11 @@
         .chat-bubble-user { background-color: #dbeafe; color: #1e3a8a; align-self: flex-end; }
         .chat-bubble-ai { background-color: #e5e7eb; color: #1f2937; align-self: flex-start; }
         #ace-editor { width: 100%; height: 300px; border-radius: 0.5rem; border: 1px solid #d1d5db; }
+        .story-card { background-color: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.07); }
+        .story-card h4 { font-weight: 600; font-size: 1.125rem; color: #111827; }
+        .story-card p { font-size: 0.875rem; color: #4b5563; }
+        .story-card .sub-section-title { font-weight: 600; font-size: 0.875rem; color: #374151; margin-top: 1rem; margin-bottom: 0.25rem;}
+        .story-card .sub-section-content { white-space: pre-wrap; font-size: 0.875rem; color: #4b5563; padding-left: 1rem; }
     </style>
 </head>
 <body class="text-gray-800">
@@ -112,6 +117,7 @@
 
             let currentActiveTemplate = null;
             let generatedFeatureData = null;
+            let generatedStoriesData = null;
             let conversationHistory = [];
             let refinedFeatureIdea = "";
             let aceEditor = null;
@@ -261,6 +267,7 @@
 
             function renderTemplate(key) {
                 generatedFeatureData = null;
+                generatedStoriesData = null;
                 conversationHistory = [];
                 refinedFeatureIdea = "";
                 actionFooter.classList.remove('hidden');
@@ -624,23 +631,205 @@
                      sizingTableHTML += `<p class="mt-2 text-sm font-semibold text-red-600">Warning: This feature exceeds the 'L' size threshold. Consider breaking it into smaller, independently valuable features.</p>`;
                 }
 
+                // Define the correct order of fields for display
+                const fieldOrder = [
+                    { key: 'summary', label: 'Summary' },
+                    { key: 'featureBenefitHypothesis', label: 'Feature / Benefit Hypothesis' },
+                    { key: 'businessValueStrategicAlignment', label: 'Business Value & Strategic Alignment' },
+                    { key: 'userImpact', label: 'User Impact' },
+                    { key: 'assumptionsDependencies', label: 'Assumptions & Dependencies' },
+                    { key: 'risksMitigations', label: 'Risks & Mitigations' },
+                    { key: 'nonFunctionalRequirements', label: 'Non-Functional Requirements (NFRs)' },
+                    { key: 'securityPrivacyConsiderations', label: 'Security & Privacy Considerations' },
+                    { key: 'sustainabilityMaintenance', label: 'Sustainability & Maintenance' },
+                    { key: 'implementationNotes', label: 'Implementation Notes' },
+                    { key: 'validationTestStrategy', label: 'Validation & Test Strategy' },
+                    { key: 'acceptanceCriteria', label: 'Acceptance Criteria' },
+                    { key: 'readinessChecklist', label: 'Readiness Checklist' }
+                ];
+
+                const fieldsHTML = fieldOrder.map(field => {
+                    if (!data[field.key]) return '';
+                    return `<div class="generated-field-container"><label class="generated-field-label">${field.label}</label><div class="generated-field-content">${data[field.key]}</div></div>`;
+                }).join('');
+
                 const contentHTML = `
                     <div class="fade-in">
                         <h2 class="text-2xl font-bold text-gray-900 break-words">${data.featureTitle || 'Generated SAFe Feature'}</h2>
                         <p class="text-sm text-gray-500 mb-6">Created by: AI Product Manager | Date: ${new Date().toLocaleDateString()}</p>
+                        
                         <div id="generated-content-container">
-                            ${Object.entries(data).map(([key, value]) => {
-                                if (key === 'featureTitle' || key === 'storyPoints') return '';
-                                const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                                return `<div class="generated-field-container"><label class="generated-field-label">${label}</label><div class="generated-field-content">${value}</div></div>`;
-                            }).join('')}
+                            ${fieldsHTML}
                              <div class="generated-field-container"><label class="generated-field-label">Sizing & Estimation</label><div class="generated-field-content"><p class="mb-2"><strong>Team Velocity:</strong> ${velocity}</p><p class="mb-4"><strong>AI-Estimated Story Points:</strong> ${data.storyPoints}</p>${sizingTableHTML}</div></div>
                         </div>
-                    </div>`;
+
+                        <div id="story-generation-container" class="mt-8 text-center pt-6 border-t border-dashed">
+                             <button id="generate-stories-button" class="ai-generator-button bg-purple-600 hover:bg-purple-700">
+                                <i data-lucide="list-plus" class="w-4 h-4 mr-2"></i>
+                                <span>Generate Stories</span>
+                            </button>
+                        </div>
+                        <div id="story-results-container" class="mt-8"></div>
+                    </div>
+                `;
                 templateContainer.innerHTML = contentHTML;
+                lucide.createIcons();
+                document.getElementById('generate-stories-button').addEventListener('click', renderDoRInput);
+
                 actionFooter.classList.remove('hidden');
                 copyButton.style.display = 'flex';
             }
+
+            function renderDoRInput() {
+                const container = document.getElementById('story-generation-container');
+                container.innerHTML = `
+                    <div class="p-4 border-t border-dashed text-left">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Decompose into User Stories</h3>
+                        <div class="mb-4">
+                            <label for="dor-input" class="block text-sm font-medium text-gray-700">Would you like to provide your team's Definition of Ready (DoR)? (Optional)</label>
+                            <p class="text-xs text-gray-500 mb-2">Providing your DoR helps the AI align stories to your team's sprint-ready standards.</p>
+                            <textarea id="dor-input" rows="4" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g., - Story is estimated\n- Acceptance criteria are defined\n- Dependencies are identified"></textarea>
+                        </div>
+                        <div id="dor-buttons" class="flex justify-end space-x-4">
+                             <button id="skip-dor-button" class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300">Skip & Use Standard Guidelines</button>
+                             <button id="proceed-dor-button" class="ai-generator-button">Proceed with DoR</button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('proceed-dor-button').addEventListener('click', () => {
+                    const dor = document.getElementById('dor-input').value;
+                    handleStoryGeneration(dor);
+                });
+                document.getElementById('skip-dor-button').addEventListener('click', () => handleStoryGeneration(''));
+            }
+
+            async function handleStoryGeneration(dor) {
+                const dorContainer = document.getElementById('story-generation-container');
+                const storiesContainer = document.getElementById('story-results-container');
+                
+                if (!generatedFeatureData) {
+                    showToast('Cannot generate stories without feature data.', 'error');
+                    return;
+                }
+                
+                if(dorContainer) {
+                    dorContainer.innerHTML = `<div class="flex justify-center items-center p-4 border-t border-dashed"><span class="loader mr-4"></span><span>Generating Stories...</span></div>`;
+                }
+                storiesContainer.innerHTML = '';
+
+                const prompt = `
+                You are a seasoned Product Owner in the Data Organization of a large financial institution. Your role is to decompose the following high-level SAFe Feature into clear, testable, and valuable User Stories that are sprint ready.
+                
+                Feature Details:
+                Title: ${generatedFeatureData.featureTitle}
+                Summary: ${generatedFeatureData.summary}
+                Acceptance Criteria: ${generatedFeatureData.acceptanceCriteria}
+
+                ${dor ? `The team's Definition of Ready is: "${dor}". Please ensure the generated stories align with these standards.` : 'Please use standard readiness guidelines.'}
+
+                For each User Story, provide:
+                1.  A concise 'title'.
+                2.  A 'description' object containing:
+                    - 'storyText': The user story in the format "As a [role], I want [action], so that [value]".
+                    - 'businessValue': High, Medium, or Low.
+                    - 'implementationNotes': Any technical considerations, APIs involved, or feature toggle strategies.
+                    - 'dependencies': Any dependencies on other teams, systems, or stories.
+                    - 'risks': A brief description of potential risks.
+                    - 'tasks': A list of potential sub-tasks.
+                    - 'testCases': A list of possible test cases.
+                3.  'acceptanceCriteria' as a multi-line string.
+                4.  'storyPoints' as a number from a modified Fibonacci scale (1, 2, 3, 5, 8, 13).
+                `;
+
+                const schema = {
+                    type: "OBJECT",
+                    properties: {
+                        stories: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    title: { type: "STRING" },
+                                    description: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            storyText: { type: "STRING" },
+                                            businessValue: { type: "STRING" },
+                                            implementationNotes: { type: "STRING" },
+                                            dependencies: { type: "STRING" },
+                                            risks: { type: "STRING" },
+                                            tasks: { type: "STRING" },
+                                            testCases: { type: "STRING" }
+                                        },
+                                        required: ["storyText", "businessValue"]
+                                    },
+                                    acceptanceCriteria: { type: "STRING" },
+                                    storyPoints: { type: "NUMBER" }
+                                },
+                                required: ["title", "description", "acceptanceCriteria", "storyPoints"]
+                            }
+                        }
+                    },
+                    required: ["stories"]
+                };
+
+                try {
+                    const result = await callGemini(prompt, schema);
+                    generatedStoriesData = result.stories; 
+                    if(dorContainer) dorContainer.innerHTML = ''; 
+                    
+                    if (generatedStoriesData && generatedStoriesData.length > 0) {
+                        const storiesHeader = document.createElement('div');
+                        storiesHeader.className = 'flex justify-between items-center mb-4 mt-8 border-t pt-6';
+                        storiesHeader.innerHTML = `
+                            <h3 class="text-xl font-bold text-gray-900">Generated User Stories</h3>
+                            <button id="copy-stories-button" class="flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-md hover:bg-blue-700">
+                                <i data-lucide="copy" class="w-4 h-4 mr-2"></i>
+                                Copy Stories
+                            </button>
+                        `;
+                        storiesContainer.appendChild(storiesHeader);
+                        
+                        const copyStoriesButton = document.getElementById('copy-stories-button');
+                        if (copyStoriesButton) {
+                            copyStoriesButton.addEventListener('click', generateStoriesOutputText);
+                        }
+                        lucide.createIcons();
+
+                        generatedStoriesData.forEach(story => {
+                            const storyCard = document.createElement('div');
+                            storyCard.className = 'story-card';
+                            storyCard.innerHTML = `
+                                <h4 class="text-lg">${story.title} (${story.storyPoints} SP)</h4>
+                                <p class="mt-2">${story.description.storyText}</p>
+
+                                <h5 class="sub-section-title">Description</h5>
+                                <div class="sub-section-content">
+                                    <strong>Business Value:</strong> ${story.description.businessValue || 'N/A'}<br>
+                                    <strong>Implementation Notes:</strong> ${story.description.implementationNotes || 'None'}<br>
+                                    <strong>Dependencies:</strong> ${story.description.dependencies || 'None'}<br>
+                                    <strong>Risks:</strong> ${story.description.risks || 'None'}<br>
+                                    <strong>Tasks:</strong> ${story.description.tasks || 'None'}<br>
+                                    <strong>Test Cases:</strong> ${story.description.testCases || 'None'}
+                                </div>
+                                
+                                <h5 class="sub-section-title">Acceptance Criteria</h5>
+                                <p class="sub-section-content">${story.acceptanceCriteria.replace(/\n/g, '<br>')}</p>
+                            `;
+                            storiesContainer.appendChild(storyCard);
+                        });
+                        showToast('User stories generated successfully!', 'success');
+                    } else {
+                        throw new Error("No stories were generated.");
+                    }
+                } catch (error) {
+                    console.error("Story Generation Error:", error);
+                    showToast("Failed to generate user stories.", "error");
+                    if (dorContainer) dorContainer.innerHTML = '';
+                    storiesContainer.innerHTML = `<p class="text-red-500">Could not generate stories at this time.</p>`;
+                }
+            }
+
 
             function calculateSizing(velocity, storyPoints) {
                 const V = velocity;
@@ -661,43 +850,69 @@
                 return { ranges, assignedSize };
             }
 
-            function generateOutputText() {
-                if (currentActiveTemplate === 'SAFe Feature') {
-                    if (!generatedFeatureData) return 'No feature has been generated yet.';
-                    const data = generatedFeatureData;
-                    const velocityText = document.querySelector('.generated-field-content p strong')?.parentElement?.textContent;
-                    const velocity = velocityText ? parseInt(velocityText.split(': ')[1]) : 20;
-                    const { ranges, assignedSize } = calculateSizing(velocity, data.storyPoints);
-                    
-                    let sizingText = `SIZING & ESTIMATION\nTeam Velocity: ${velocity}\nAI-Estimated Story Points: ${data.storyPoints}\nAssigned Size: ${assignedSize}\n\n`;
-                    sizingText += 'T-Shirt Size | Story Point Range\n---------------------------------\n';
-                    Object.keys(ranges).forEach(key => { sizingText += `${key.padEnd(12)} | ${ranges[key].label}\n`; });
+            function generateFeatureOutputText() {
+                if (!generatedFeatureData) return 'No feature has been generated yet.';
+                const data = generatedFeatureData;
+                const velocityText = document.querySelector('.generated-field-content p strong')?.parentElement?.textContent;
+                const velocity = velocityText ? parseInt(velocityText.split(': ')[1]) : 20;
+                const { ranges, assignedSize } = calculateSizing(velocity, data.storyPoints);
+                
+                let sizingText = `SIZING & ESTIMATION\nTeam Velocity: ${velocity}\nAI-Estimated Story Points: ${data.storyPoints}\nAssigned Size: ${assignedSize}\n\n`;
+                sizingText += 'T-Shirt Size | Story Point Range\n---------------------------------\n';
+                Object.keys(ranges).forEach(key => { sizingText += `${key.padEnd(12)} | ${ranges[key].label}\n`; });
 
-                    const sections = Object.entries(data).map(([key, value]) => {
-                        if (key === 'storyPoints') return null;
-                        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                        return { label, content: value };
-                    }).filter(Boolean);
-                    sections.push({ label: 'Sizing & Estimation', content: sizingText });
+                const fieldOrder = [ 'summary', 'featureBenefitHypothesis', 'businessValueStrategicAlignment', 'userImpact', 'assumptionsDependencies', 'risksMitigations', 'nonFunctionalRequirements', 'securityPrivacyConsiderations', 'sustainabilityMaintenance', 'implementationNotes', 'validationTestStrategy', 'acceptanceCriteria', 'readinessChecklist' ];
+                
+                const sections = fieldOrder.map(key => {
+                    if (!data[key]) return null;
+                    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                    return { label, content: data[key] };
+                }).filter(Boolean);
 
-                    return sections.map(sec => `** ${sec.label.toUpperCase()} **\n${sec.content}\n\n`).join('');
-                } else {
-                    // Handle generic templates
-                    const template = templates[currentActiveTemplate];
-                    if (!template) return '';
-                    let output = `WORK ITEM: ${template.title.toUpperCase()}\n========================================\n\n`;
-                    template.fields.slice(1).forEach(field => {
-                        let value;
-                        if (field.type === 'ace' && aceEditor) {
-                            value = aceEditor.getValue();
-                        } else {
-                            const input = document.getElementById(field.id);
-                            if (input) value = input.value;
-                        }
-                        output += `** ${field.label} **\n${value || '(Not provided)'}\n\n`;
-                    });
-                    return output;
+                sections.push({ label: 'Sizing & Estimation', content: sizingText });
+
+                return sections.map(sec => `** ${sec.label.toUpperCase()} **\n${sec.content}\n\n`).join('');
+            }
+
+            function generateStoriesOutputText() {
+                if (!generatedStoriesData || generatedStoriesData.length === 0) {
+                    showToast('No stories to copy.', 'error');
+                    return;
                 }
+                
+                let output = "GENERATED USER STORIES\n========================================\n\n";
+                generatedStoriesData.forEach(story => {
+                    output += `** TITLE: ${story.title} (${story.storyPoints} SP) **\n\n`;
+                    output += `** USER STORY **\n${story.description.storyText}\n\n`;
+                    output += `** DESCRIPTION **\n`;
+                    output += `Business Value: ${story.description.businessValue || 'N/A'}\n`;
+                    output += `Implementation Notes: ${story.description.implementationNotes || 'None'}\n`;
+                    output += `Dependencies: ${story.description.dependencies || 'None'}\n`;
+                    output += `Risks: ${story.description.risks || 'None'}\n`;
+                    output += `Tasks: ${story.description.tasks || 'None'}\n`;
+                    output += `Test Cases: ${story.description.testCases || 'None'}\n\n`;
+                    output += `** ACCEPTANCE CRITERIA **\n${story.acceptanceCriteria}\n\n`;
+                    output += `----------------------------------------\n\n`;
+                });
+
+                navigator.clipboard.writeText(output).then(() => showToast('Stories copied to clipboard!')).catch(() => showToast('Failed to copy stories.', 'error'));
+            }
+
+            function generateGenericOutputText() {
+                const template = templates[currentActiveTemplate];
+                if (!template) return '';
+                let output = `WORK ITEM: ${template.title.toUpperCase()}\n========================================\n\n`;
+                template.fields.slice(1).forEach(field => {
+                    let value;
+                    if (field.type === 'ace' && aceEditor) {
+                        value = aceEditor.getValue();
+                    } else {
+                        const input = document.getElementById(field.id);
+                        if (input) value = input.value;
+                    }
+                    output += `** ${field.label} **\n${value || '(Not provided)'}\n\n`;
+                });
+                return output;
             }
 
             function showToast(message, type = 'success') {
@@ -708,8 +923,8 @@
             }
 
             copyButton.addEventListener('click', () => {
-                const textToCopy = generateOutputText();
-                navigator.clipboard.writeText(textToCopy).then(() => showToast('Copied to clipboard!')).catch(() => showToast('Failed to copy.', 'error'));
+                const textToCopy = (currentActiveTemplate === 'SAFe Feature') ? generateFeatureOutputText() : generateGenericOutputText();
+                navigator.clipboard.writeText(textToCopy).then(() => showToast('Output copied to clipboard!')).catch(() => showToast('Failed to copy.', 'error'));
             });
 
             resetButton.addEventListener('click', () => {
