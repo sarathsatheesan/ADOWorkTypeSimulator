@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADO Work Item Simulator</title>
+    <title>ADO Work Item Simulator - AWiS </title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -80,8 +80,8 @@
             <footer id="action-footer" class="mt-8 pt-6 border-t border-gray-200 hidden">
                  <div class="flex items-center justify-end space-x-4">
                     <button id="copy-button" class="flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500" style="display: none;">
-                        <div id="copy-icon" class="w-5 h-5 mr-2"></div>
-                        Copy Output
+                        <i data-lucide="copy" class="w-5 h-5 mr-2"></i>
+                        <span id="copy-button-text">Copy Output</span>
                     </button>
                     <button id="reset-button" class="flex items-center px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
                         <div id="reset-icon" class="w-5 h-5 mr-2"></div>
@@ -111,6 +111,7 @@
             const menuContainer = document.getElementById('menu-container');
             const actionFooter = document.getElementById('action-footer');
             const copyButton = document.getElementById('copy-button');
+            const copyButtonText = document.getElementById('copy-button-text');
             const resetButton = document.getElementById('reset-button');
             const toastNotification = document.getElementById('toast-notification');
             const toastMessage = document.getElementById('toast-message');
@@ -236,14 +237,17 @@
 
             function renderStaticIcons() {
                 document.getElementById('welcome-icon').innerHTML = `<i data-lucide="layout-template" class="w-full h-full"></i>`;
-                document.getElementById('copy-icon').innerHTML = `<i data-lucide="copy" class="w-full h-full"></i>`;
                 document.getElementById('reset-icon').innerHTML = `<i data-lucide="rotate-cw" class="w-full h-full"></i>`;
+                lucide.createIcons({
+                    attrs: {
+                        'stroke-width': 1.5,
+                    }
+                });
             }
 
             function initApp() {
                 renderStaticIcons();
                 renderMenu();
-                lucide.createIcons();
             }
             
             function renderMenu() {
@@ -272,6 +276,7 @@
                 refinedFeatureIdea = "";
                 actionFooter.classList.remove('hidden');
                 copyButton.style.display = 'flex';
+                copyButtonText.textContent = 'Copy Output';
 
                 if (aceEditor) {
                     aceEditor.destroy();
@@ -678,6 +683,7 @@
 
                 actionFooter.classList.remove('hidden');
                 copyButton.style.display = 'flex';
+                copyButtonText.textContent = 'Copy Feature Details';
             }
 
             function renderDoRInput() {
